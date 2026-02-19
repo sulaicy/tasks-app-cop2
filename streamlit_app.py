@@ -16,14 +16,13 @@ import plotly.express as px
 # -------------------------
 # Read configuration from environment (Streamlit Secrets are exposed as env vars)
 DB_URL = os.getenv("DATABASE_URL", "sqlite:///task_tracker.db")
-APP_SECRET = os.getenv("APP_SECRET", "change_this_secret")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")  # optional: create admin automatically if provided
-ADMIN_PASS = os.getenv("ADMIN_PASS")    # optional
+# Default admin credentials (created automatically if no admin exists)
+DEFAULT_ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+DEFAULT_ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
 Base = declarative_base()
 
 def get_engine(db_url):
-    # For SQLite, SQLAlchemy needs check_same_thread False
     connect_args = {}
     if db_url.startswith("sqlite"):
         connect_args = {"check_same_thread": False}
@@ -90,10 +89,10 @@ def verify_password(user, password):
 def compute_points(completed_value, points_per_unit):
     return (completed_value or 0.0) * (points_per_unit or 1.0)
 
-# Optional: create admin automatically if secrets provided (safer than hardcoding)
-if ADMIN_EMAIL and ADMIN_PASS:
-    if not get_user_by_email(ADMIN_EMAIL):
-        create_user("Admin", ADMIN_EMAIL, ADMIN_PASS, role="admin")
+# Create default admin if none exists
+if not session.query(User).filter_by(role="admin").first():
+    if not get_user_by_email(DEFAULT_ADMIN_EMAIL):
+        create_user("Admin", DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASS, role="admin")
 
 # -------------------------
 # Streamlit UI
@@ -131,16 +130,6 @@ def logout():
     st.session_state["user_name"] = None
     st.session_state["user_role"] = None
     st.experimental_rerun()
-
-def require_login():
-    if not st.session_state.get("user_id"):
-        login_flow()
-        st.stop()
-
-# Top-right: show admin creation hint if no admin exists
-admin_exists = session.query(User).filter_by(role="admin").first()
-if not admin_exists:
-    st.warning("لا يوجد حساب آدمن. يمكنك تعيين ADMIN_EMAIL و ADMIN_PASS في Streamlit Secrets لإنشاء آدمن تلقائياً أو إنشاء مستخدم آدمن عبر واجهة 'المستخدمون' بعد تسجيل الدخول.")
 
 # If not logged in, show login
 if not st.session_state.get("user_id"):
